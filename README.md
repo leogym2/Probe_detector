@@ -1,6 +1,6 @@
 # Probe Detector
 
-A deep learning system that detects the bounding box of an ultrasonic thickness-measurement probe in drone-captured images — or confidently reports that no probe is present.
+A deep learning system that detects the bounding box of an ultrasonic thickness-measurement probe in drone-captured images or confidently reports that no probe is present.
 
 ## Setup
 
@@ -49,4 +49,4 @@ Useful options:
 - `--out outputs/` — output folder (default `outputs/`)
 - `--show` — display results in a window instead of saving them
 
-For each image, the detected bounding box is drawn (or "No probe detected" if none is found), and results are saved to `outputs/` along with a `detections.json` sidecar.
+For each image, the detected bounding box is drawn (or "No probe detected" if none is found), and results are saved to `outputs/` along with a `detections.json`.
