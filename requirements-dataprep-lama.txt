@@ -1,0 +1,16 @@
+# Separate environment, used only to regenerate yolo_dataset/'s synthetic
+# negatives with generative inpainting (data_prep/generate_negatives.py and
+# the scripts that call it). Kept out of requirements.txt on purpose:
+# simple-lama-inpainting pulls in older numpy/opencv/pillow than the rest of
+# the project pins, and none of training/inference/evaluation need it --
+# this is a one-time offline dataset-prep tool, not a runtime dependency.
+#
+# Setup:
+#   py -3.12 -m venv .venv-lama
+#   .venv-lama\Scripts\pip install -r requirements-dataprep-lama.txt
+#
+# Then run data_prep scripts with .venv-lama's python instead of .venv's.
+
+simple-lama-inpainting
+pyyaml
+tqdm

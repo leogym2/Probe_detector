@@ -1,0 +1,20 @@
+# Core deep learning stack
+torch==2.11.0
+torchvision==0.26.0
+
+# Object detection framework
+ultralytics>=8.3,<9
+
+# Image processing
+opencv-python==4.13.0.92
+pillow
+
+# Data handling
+numpy
+pandas
+pyyaml
+scikit-learn
+
+# Utilities
+tqdm
+matplotlib

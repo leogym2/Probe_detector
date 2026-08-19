@@ -1,0 +1,33 @@
+{
+  "weights": "weights/yolov8s/best.pt",
+  "split": "val",
+  "localization": {
+    "n_positive_images": 51,
+    "mean_iou_top_detection": 0.7924514825986887,
+    "operating_conf_threshold": 0.35,
+    "iou_match_threshold": 0.5,
+    "precision_at_conf": 0.9761904761904762,
+    "recall_at_conf": 0.803921568627451,
+    "f1_at_conf": 0.8817204301075269,
+    "ap_at_iou_0.5": 0.8685455094581118,
+    "fp_calibrated_threshold": 0.63,
+    "recall_at_fp_calibrated_threshold": 0.6470588235294118
+  },
+  "no_probe_behavior": {
+    "n_negative_images": 51,
+    "fp_target": 0.05,
+    "target_reached": true,
+    "suggested_threshold": 0.63,
+    "achieved_fp_rate_at_suggested_threshold": 0.0392156862745098
+  },
+  "runtime": {
+    "device": "cpu",
+    "cpu_model": "x86_64",
+    "n_images_timed": 50,
+    "mean_ms": 280.70538460000535,
+    "median_ms": 250.38551350098714,
+    "p90_ms": 371.1967210001603,
+    "fps": 3.56245392807467
+  },
+  "roc_auc": 0.8600538254517492
+}

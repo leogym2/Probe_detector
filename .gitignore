@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.venv-lama/
+
+# Generated / regenerable dataset artifacts
+yolo_dataset/
+data_prep/negatives_cache/
+data_prep/negatives_qa/
+
+# Training runs and checkpoints (keep only weights/best.pt, tracked explicitly)
+runs/
+weights/*.pt
+# Stray pretrained checkpoints auto-downloaded by Ultralytics into the cwd
+/*.pt
+
+# Inference outputs
+outputs/
+outputs_smoke_test/
+test_images/
+
+# LaTeX build artifacts
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.fls
+report/*.fdb_latexmk
+report/*.synctex.gz
+
+# AI agent configs
+.claude/
+.agents/
+
+# OS
+.DS_Store
+Thumbs.db
