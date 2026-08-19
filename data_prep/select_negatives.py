@@ -1,6 +1,6 @@
 """Prune already-generated synthetic negatives down to a target ratio,
 without re-running LaMa on anything -- just removes files and manifest
-entries for a random subset.
+entries for the lowest-quality subset.
 
 Train negatives don't add localization learning signal (no GT box to
 regress against): they only teach the classification/objectness branch.
@@ -10,11 +10,15 @@ hand, are what calibrate the confidence threshold and measure the
 false-positive rate -- shrinking those makes that measurement noisier. So
 by default this prunes train negatives down to a target ratio while
 leaving val/test untouched.
+
+Pruning keeps the candidates whose quality_score is closest to 1.0 (i.e.
+hardest to distinguish from real surrounding texture), the same rule used
+by build_yolo_dataset.py and select_scored_negatives.py -- requires
+quality_score to already be present on each synthetic_negative record.
 """
 
 import argparse
 import json
-import random
 from pathlib import Path
 
 
@@ -24,22 +28,20 @@ def prune_negatives(
     labels_root: Path,
     target_ratio: float,
     splits: list[str],
-    seed: int = 42,
 ) -> list[dict]:
-    """Return a new manifest with a random subset of synthetic negatives
+    """Return a new manifest with the lowest-quality synthetic negatives
     removed (and their files deleted from disk) for the given splits, so
     that each targeted split keeps target_ratio of its original negative
-    count."""
-    rng = random.Random(seed)
-
+    count -- keeping the candidates whose quality_score is closest to
+    1.0."""
     remove_indices: set[int] = set()
     for split in splits:
-        candidates = [
-            i for i, r in enumerate(manifest)
-            if r["split"] == split and r["origin"] == "synthetic_negative"
-        ]
+        candidates = sorted(
+            (i for i, r in enumerate(manifest) if r["split"] == split and r["origin"] == "synthetic_negative"),
+            key=lambda i: abs(manifest[i]["quality_score"] - 1.0),
+        )
         n_keep = round(len(candidates) * target_ratio)
-        keep = set(rng.sample(candidates, k=n_keep)) if candidates else set()
+        keep = set(candidates[:n_keep])
         remove_indices.update(i for i in candidates if i not in keep)
 
     for i in remove_indices:
@@ -60,14 +62,13 @@ def main() -> None:
     parser.add_argument("--target-ratio", type=float, default=0.3)
     parser.add_argument("--splits", nargs="+", default=["train"],
                          help="Which splits to prune (default: train only)")
-    parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
     n_before = sum(1 for r in manifest if r["origin"] == "synthetic_negative")
 
     new_manifest = prune_negatives(
-        manifest, args.images_root, args.labels_root, args.target_ratio, args.splits, args.seed
+        manifest, args.images_root, args.labels_root, args.target_ratio, args.splits
     )
 
     n_after = sum(1 for r in new_manifest if r["origin"] == "synthetic_negative")

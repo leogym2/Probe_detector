@@ -15,11 +15,17 @@ examples per epoch. val/test negatives, on the other hand, are what
 calibrate the confidence threshold and measure the false-positive rate --
 shrinking those makes that measurement noisier. Default: 0.3 for train,
 1.0 (full) for val/test.
+
+Which negatives to keep at a ratio below 1.0 is not random: a LaMa
+candidate is generated for every positive image in the split, scored with
+score_negative_quality(), and the kept fraction is the candidates closest
+to a quality_score of 1.0 (i.e. hardest to distinguish from real
+surrounding texture). See negative_selection.json, written alongside the
+dataset, for the resulting positives/candidates/selected counts per split.
 """
 
 import argparse
 import json
-import random
 import shutil
 from pathlib import Path
 
@@ -100,59 +106,80 @@ def build(
         )
         bump(split, "original", r.device)
 
-    # --- synthetic negatives: same split as their source group, sampled
-    # per-split at neg_ratios (see module docstring for why train differs
-    # from val/test) ---
+    # --- synthetic negatives: one LaMa candidate is generated per positive
+    # in the split, scored with score_negative_quality(), and only the
+    # candidates closest to a quality_score of 1.0 are kept, per neg_ratios
+    # (see module docstring for the selection rule and for why train
+    # differs from val/test) ---
     records_by_split: dict[str, list] = {s: [] for s in SPLITS}
     for r in records:
         records_by_split[assignment[(r.device, r.sequence)]].append(r)
 
-    rng = random.Random(seed)
-    neg_source_records = []
+    neg_quality: list[tuple[float, str]] = []  # (score, file_name) of kept negatives
+    selection_summary: dict[str, dict] = {}
     for split in SPLITS:
         split_records = records_by_split[split]
         ratio = neg_ratios.get(split, 1.0)
-        if ratio >= 1.0:
-            neg_source_records.extend(split_records)
-        else:
-            n_keep = round(len(split_records) * ratio)
-            neg_source_records.extend(rng.sample(split_records, k=n_keep))
 
-    neg_quality: list[tuple[float, str]] = []  # (score, file_name)
-    for r in neg_source_records:
-        split = assignment[(r.device, r.sequence)]
-        src = images_dir / r.file_name
-        image_bgr = cv2.imread(str(src))
-        if image_bgr is None:
-            raise FileNotFoundError(src)
+        candidates = []
+        for r in split_records:
+            src = images_dir / r.file_name
+            image_bgr = cv2.imread(str(src))
+            if image_bgr is None:
+                raise FileNotFoundError(src)
 
-        neg_image = generate_negative(image_bgr, r.bbox, pad_frac=pad_frac)
-        quality_score = score_negative_quality(neg_image, r.bbox, pad_frac=pad_frac)
+            neg_image = generate_negative(image_bgr, r.bbox, pad_frac=pad_frac)
+            quality_score = score_negative_quality(neg_image, r.bbox, pad_frac=pad_frac)
+            candidates.append((abs(quality_score - 1.0), quality_score, r, neg_image))
 
-        neg_file_name = f"{Path(r.file_name).stem}_neg.jpg"
-        cv2.imwrite(str(images_out[split] / neg_file_name), neg_image)
+        candidates.sort(key=lambda c: c[0])
+        n_keep = len(candidates) if ratio >= 1.0 else round(len(split_records) * ratio)
+        selection_summary[split] = {
+            "positives": len(split_records),
+            "candidates": len(candidates),
+            "selected": n_keep,
+        }
 
-        label_path = labels_out[split] / f"{Path(neg_file_name).stem}.txt"
-        write_yolo_label(label_path, bbox_xywh=None)
+        for rank, (score_distance, quality_score, r, neg_image) in enumerate(candidates[:n_keep], start=1):
+            neg_file_name = f"{Path(r.file_name).stem}_neg.jpg"
+            cv2.imwrite(str(images_out[split] / neg_file_name), neg_image)
 
-        manifest.append(
-            {
-                "file_name": neg_file_name,
-                "split": split,
-                "group": group_key_str(r.device, r.sequence),
-                "origin": "synthetic_negative",
-                "source_image_id": r.image_id,
-                "bbox": None,
-                "cluster": None,
-                "neg_method": "lama",
-                "quality_score": quality_score,
-            }
-        )
-        bump(split, "synthetic_negative", r.device)
-        neg_quality.append((quality_score, neg_file_name))
+            label_path = labels_out[split] / f"{Path(neg_file_name).stem}.txt"
+            write_yolo_label(label_path, bbox_xywh=None)
+
+            manifest.append(
+                {
+                    "file_name": neg_file_name,
+                    "split": split,
+                    "group": group_key_str(r.device, r.sequence),
+                    "origin": "synthetic_negative",
+                    "source_image_id": r.image_id,
+                    "bbox": None,
+                    "cluster": None,
+                    "neg_method": "lama",
+                    "quality_score": quality_score,
+                    "score_distance_from_one": score_distance,
+                    "selection_rank": rank,
+                }
+            )
+            bump(split, "synthetic_negative", r.device)
+            neg_quality.append((quality_score, neg_file_name))
 
     manifest_path = out_dir / "splits_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    selection_path = out_dir / "negative_selection.json"
+    selection_path.write_text(
+        json.dumps(
+            {
+                "ratios": neg_ratios,
+                "selection_rule": "minimum abs(quality_score - 1.0)",
+                **selection_summary,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
     data_yaml_path = out_dir / "data.yaml"
     data_yaml_path.write_text(
@@ -168,6 +195,7 @@ def build(
     _print_summary(counts, split_meta, neg_quality)
     print(f"\nWrote {group_split_path}")
     print(f"Wrote {manifest_path}")
+    print(f"Wrote {selection_path}")
     print(f"Wrote {data_yaml_path}")
 
 
