@@ -38,7 +38,7 @@ pip install -r requirements.txt
 ## Inference
 
 ```
-python inference.py <folder_of_images> --weights weights/best.pt
+python inference.py <folder_of_images> 
 ```
 
 You can use the folder "examples" to try it out.
